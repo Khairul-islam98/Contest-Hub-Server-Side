@@ -2,8 +2,8 @@ const express = require('express');
 const app = express();
 require('dotenv').config()
 const cors = require('cors');
-const jwt = require('jsonwebtoken')
 const cookieParser = require('cookie-parser')
+const jwt = require('jsonwebtoken')
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY)
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const port = process.env.PORT || 5001
@@ -13,7 +13,8 @@ const port = process.env.PORT || 5001
 app.use(cors({
     origin: [
         'http://localhost:5173',
-        'http://localhost:5174',
+        'https://assignment-12-dfc40.web.app',
+        'https://contest-hub.netlify.app'
     ],
     credentials: true
 }));
@@ -21,21 +22,7 @@ app.use(express.json());
 app.use(cookieParser());
 
 
-const verifyToken = async (req, res, next) => {
-    const token = req.cookies?.token
-    console.log(token)
-    if (!token) {
-        return res.status(401).send({ message: 'unauthorized access' })
-    }
-    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
-        if (err) {
-            console.log(err)
-            return res.status(401).send({ message: 'unauthorized access' })
-        }
-        req.user = decoded
-        next()
-    })
-}
+
 
 
 
@@ -53,11 +40,27 @@ const client = new MongoClient(uri, {
 async function run() {
     try {
         // Connect the client to the server	(optional starting in v4.7)
-        await client.connect();
+        // await client.connect();
 
         const usersCollection = client.db("contestHubDb").collection("users");
         const contestsCollection = client.db("contestHubDb").collection("contests");
         const bookingsCollection = client.db("contestHubDb").collection("bookings");
+
+        const verifyToken = (req, res, next) => {
+            // console.log('inside verify token', req.headers.authorization);
+            if (!req.headers.authorization) {
+              return res.status(401).send({ message: 'unauthorized access' });
+            }
+            const token = req.headers.authorization.split(' ')[1];
+            jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+              if (err) {
+                return res.status(401).send({ message: 'unauthorized access' })
+              }
+              req.decoded = decoded;
+              next();
+            })
+          }
+      
 
         const verifyAdmin = async (req, res, next) => {
             const user = req.user
@@ -110,8 +113,6 @@ async function run() {
 
 
 
-
-
         app.put('/users/:email', async (req, res) => {
             const email = req.params.email
             const user = req.body
@@ -142,19 +143,19 @@ async function run() {
             )
             res.send(result)
         })
-        // Get user role
+       
         app.get('/user/:email', async (req, res) => {
             const email = req.params.email
             const result = await usersCollection.findOne({ email })
             res.send(result)
         })
-        // Get all users
+        
         app.get('/users', async (req, res) => {
             const result = await usersCollection.find().toArray()
             res.send(result)
         })
         // Update user role
-        app.put('/users/update/:email', async (req, res) => {
+        app.put('/users/update/:email',  async (req, res) => {
             const email = req.params.email
             const user = req.body
             const query = { email: email }
@@ -169,7 +170,7 @@ async function run() {
             res.send(result)
         })
 
-        app.post('/contests', async (req, res) => {
+        app.post('/contests',  async (req, res) => {
             const contest = req.body
             const result = await contestsCollection.insertOne(contest)
             res.send(result)
@@ -212,7 +213,7 @@ async function run() {
             res.send(result)
         })
 
-        app.get('/contests/creator/:email', async (req, res) => {
+        app.get('/contests/creator/:email',  async (req, res) => {
             const email = req.params.email
             const result = await contestsCollection
                 .find({ 'creator.email': email })
@@ -221,7 +222,7 @@ async function run() {
         })
 
 
-        app.put('/contests/:id', async (req, res) => {
+        app.put('/contests/:id',  async (req, res) => {
             const contest = req.body
             console.log(contest)
 
@@ -301,7 +302,7 @@ async function run() {
 
 
 
-        app.delete('/contests/:id', async (req, res) => {
+        app.delete('/contests/:id',  async (req, res) => {
             const id = req.params.id
             const query = { _id: new ObjectId(id) }
             const result = await contestsCollection.deleteOne(query)
@@ -310,7 +311,7 @@ async function run() {
 
 
 
-        app.post('/create-payment-intent', async (req, res) => {
+        app.post('/create-payment-intent',  async (req, res) => {
             const { price } = req.body
             const amount = parseInt(price * 100)
             if (!price || amount < 1) return
@@ -322,7 +323,7 @@ async function run() {
             res.send({ clientSecret: client_secret })
         })
 
-        app.post('/bookings', async (req, res) => {
+        app.post('/bookings',  async (req, res) => {
             const booking = req.body
             const result = await bookingsCollection.insertOne(booking)
             res.send(result)
@@ -335,7 +336,7 @@ async function run() {
                 .toArray()
             res.send(result)
         })
-        app.put('/contests/winner/:contestId', async (req, res) => {
+        app.put('/contests/winner/:contestId',  async (req, res) => {
             const winner = req.body
             const id = req.params.contestId;
             console.log(id);
@@ -358,7 +359,7 @@ async function run() {
             res.send(result)
         })
 
-        app.put('/bookings/submissions/:id', async (req, res) => {
+        app.put('/bookings/submissions/:id',  async (req, res) => {
             try {
                 const id = req.params.id;
                 const won = req.body;
@@ -383,14 +384,14 @@ async function run() {
         });
 
 
-        app.get('/bookings/user/:email', async (req, res) => {
+        app.get('/bookings/user/:email',  async (req, res) => {
             const email = req.params.email
             const result = await bookingsCollection
                 .find({ 'user.email': email })
                 .toArray()
             res.send(result)
         })
-        app.get('/bookings/user/won/:email', async (req, res) => {
+        app.get('/bookings/user/won/:email',  async (req, res) => {
             const email = req.params.email
             const result = await bookingsCollection
                 .find({ 'won.email': email })
